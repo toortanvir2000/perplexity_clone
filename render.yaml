@@ -4,7 +4,7 @@ services:
     env: node
     rootDir: .
     plan: free
-    buildCommand: npm --prefix client install && npm --prefix client run build && npm --prefix server install
+    buildCommand: npm --prefix client install --include=dev && npm --prefix client run build && npm --prefix server install --include=dev
     startCommand: npx tsx server/index.ts
     healthCheckPath: /health
     autoDeploy: true
