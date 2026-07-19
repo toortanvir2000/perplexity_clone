@@ -532,11 +532,6 @@ p {
 }
 
 @media (max-width: 680px) {
-  .brand-dot {
-    width: 14px;
-    height: 10px;
-  }
-
   .app-grid {
     grid-template-rows: auto auto minmax(0, 1fr) auto;
   }
