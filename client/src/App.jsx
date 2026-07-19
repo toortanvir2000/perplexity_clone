@@ -468,8 +468,9 @@ export default function App() {
         body: JSON.stringify({ email, password, name }),
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
         const message =
           data?.error === "account_already_exists"
             ? "Account already exists. Please sign in."
@@ -482,13 +483,29 @@ export default function App() {
         return;
       }
 
-      await loadSession();
+      if (data?.user) {
+        setUser(data.user);
+      }
+
+      try {
+        await migrateAnonymousConversations();
+      } catch {
+        // If migration fails we still want the user to remain signed in.
+      }
+
+      await loadConversations(true);
+
       setAuthPopupOpen(false);
       setAuthPassword("");
       setAuthName("");
       setAuthEmail("");
       setAuthError("");
       setAuthMode("signin");
+
+      // Background verification syncs UI with backend session status.
+      setTimeout(() => {
+        void loadSession();
+      }, 250);
     } finally {
       setAuthActionLoading(false);
     }
