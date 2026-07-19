@@ -436,7 +436,7 @@ export default function App() {
     <div className="app-shell app-grid">
       <header className="topbar">
         <div className="brand-dot" />
-        <h1>Perplexity Clone</h1>
+        <h1>Ishenium</h1>
 
         {user ? (
           <div className="user-chip">{user.name}</div>
