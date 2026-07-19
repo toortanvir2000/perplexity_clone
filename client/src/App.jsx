@@ -94,6 +94,7 @@ export default function App() {
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [suggestedPrompts, setSuggestedPrompts] = useState([]);
   const [suggestionsExpanded, setSuggestionsExpanded] = useState(false);
+  const [conversationsExpanded, setConversationsExpanded] = useState(false);
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [authPopupOpen, setAuthPopupOpen] = useState(false);
   const [anonMessageCount, setAnonMessageCount] = useState(0);
@@ -104,6 +105,10 @@ export default function App() {
   const [authError, setAuthError] = useState("");
 
   const canSend = useMemo(() => query.trim().length > 0 && !loading, [query, loading]);
+  const activeConversationLabel = useMemo(() => {
+    const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId);
+    return activeConversation?.title || activeConversation?.slug || "Recent chats";
+  }, [activeConversationId, conversations]);
 
   useEffect(() => {
     const lastAssistant = [...messages].reverse().find((msg) => msg.role === "assistant");
@@ -243,6 +248,7 @@ export default function App() {
       setActiveConversationId(conversationId);
       const nextMessages = conversation?.messages ?? [];
       setMessages(nextMessages);
+      setConversationsExpanded(false);
       persistAnonymous(conversations, conversationId);
       return;
     }
@@ -268,6 +274,7 @@ export default function App() {
 
     setMessages(mappedMessages);
     setActiveConversationId(conversationId);
+    setConversationsExpanded(false);
   }
 
   async function deleteConversation(conversationId) {
@@ -334,6 +341,7 @@ export default function App() {
   function beginNewConversation() {
     setActiveConversationId(null);
     setMessages([]);
+    setConversationsExpanded(false);
     if (!user) {
       persistAnonymous(conversations, null);
     }
@@ -546,8 +554,17 @@ export default function App() {
 
       <aside className="sidebar">
         <button className="new-chat-btn" onClick={beginNewConversation}>New Chat</button>
+        <button
+          type="button"
+          className="sidebar-toggle"
+          onClick={() => setConversationsExpanded((prev) => !prev)}
+        >
+          {conversationsExpanded
+            ? "Hide recent chats"
+            : `${activeConversationLabel} (${conversations.length})`}
+        </button>
         <div className="sidebar-title">Recent</div>
-        <div className="conversation-list">
+        <div className={`conversation-list ${conversationsExpanded ? "expanded" : "collapsed"}`}>
           {conversations.map((conversation) => (
             <div key={conversation.id} className="conversation-row">
               <button

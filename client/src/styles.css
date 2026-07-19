@@ -226,6 +226,17 @@ p {
   cursor: pointer;
 }
 
+.sidebar-toggle {
+  display: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #101a31;
+  color: var(--muted);
+  padding: 0.42rem 0.6rem;
+  text-align: left;
+  cursor: pointer;
+}
+
 .sidebar-title {
   font-size: 0.78rem;
   color: var(--muted);
@@ -308,7 +319,7 @@ p {
 
 .bubble {
   line-height: 1.55;
-  white-space: pre-wrap;
+  white-space: normal;
   overflow-wrap: anywhere;
 }
 
@@ -424,6 +435,7 @@ p {
   display: flex;
   flex-wrap: wrap;
   gap: 0.36rem;
+  overflow-block: auto;
 }
 
 .composer-suggestions-label {
@@ -525,8 +537,26 @@ p {
     max-height: 180px;
   }
 
+  .sidebar-toggle {
+    display: block;
+  }
+
+  .sidebar-title {
+    display: none;
+  }
+
   .conversation-list {
     max-height: none;
+    flex: 0 0 auto;
+  }
+
+  .conversation-list.collapsed {
+    display: none;
+  }
+
+  .conversation-list.expanded {
+    display: flex;
+    max-height: 220px;
   }
 
   .chat-area {
@@ -564,6 +594,13 @@ p {
 
   .composer-suggestions-list {
     width: 100%;
+  }
+}
+
+@media (min-width: 681px) {
+  .conversation-list.collapsed,
+  .conversation-list.expanded {
+    display: flex;
   }
 }
 
