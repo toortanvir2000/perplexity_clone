@@ -534,22 +534,27 @@ export default function App() {
   return (
     <div className="app-shell app-grid">
       <header className="topbar">
-        <div className="brand-dot" />
-        <h1>Ishenium</h1>
+        <div className="brand-section">
+            <div className="brand-dot" />
+            <h1>Ishenium</h1>
+        </div>
 
-        {user ? (
-          <div className="user-chip">{user.name}</div>
-        ) : (
-          <div className="user-chip">Anonymous ({Math.max(ANON_MESSAGE_LIMIT - anonMessageCount, 0)} left)</div>
-        )}
-        {!user ? (
-          <button className="plain-btn" onClick={() => setAuthPopupOpen(true)}>Sign in</button>
-        ) : (
-          <>
-            <button className="plain-btn" onClick={logout} disabled={authActionLoading}>Logout</button>
-            <button className="danger-btn" onClick={deleteAccount} disabled={authActionLoading}>Delete Account</button>
-          </>
-        )}
+        <div className="user-section">
+            {user ? (
+            <div className="user-chip">{user.name}</div>
+            ) : (
+            <div className="user-chip">Anonymous ({Math.max(ANON_MESSAGE_LIMIT - anonMessageCount, 0)} left)</div>
+            )}
+            {!user ? (
+            <button className="plain-btn" onClick={() => setAuthPopupOpen(true)}>Sign in</button>
+            ) : (
+            <>
+                <button className="plain-btn" onClick={logout} disabled={authActionLoading}>Logout</button>
+                <button className="danger-btn" onClick={deleteAccount} disabled={authActionLoading}>Delete Account</button>
+            </>
+            )}
+        </div>
+
       </header>
 
       <aside className="sidebar">
