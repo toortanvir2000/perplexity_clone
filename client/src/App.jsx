@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 const API_URL = `${API_BASE}/conversation`;
 const ANON_CONVERSATIONS_KEY = "anon_conversations_v1";
 const ANON_ACTIVE_KEY = "anon_active_conversation_v1";
+const ANON_MESSAGE_COUNT_KEY = "anon_message_count_v1";
+const ANON_MESSAGE_LIMIT = 5;
 
 function parseSources(raw) {
   const start = raw.indexOf("<SOURCES>");
@@ -32,7 +35,13 @@ function splitSuggestionItems(raw) {
 
   return raw
     .split(/\n|\r|\d+[.)]\s+|[-*]\s+/)
-    .map((item) => item.trim())
+    .map((item) =>
+      item
+        .replace(/<[^>]+>/g, "")
+        .replace(/^[:\-\s]+/, "")
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
     .filter(Boolean);
 }
 
@@ -41,7 +50,7 @@ function parseAssistantResponse(rawText) {
   const followUp = splitSuggestionItems(extractTagContent(rawText, "FOLLOW_UP"));
   const question = splitSuggestionItems(extractTagContent(rawText, "QUESTION"));
 
-  const suggestions = Array.from(new Set([...followUp, ...question]));
+  const suggestions = Array.from(new Set([...followUp, ...question])).slice(0, 4);
 
   if (answer) {
     return { answer, suggestions };
@@ -82,6 +91,7 @@ export default function App() {
   const [suggestedPrompts, setSuggestedPrompts] = useState([]);
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [authPopupOpen, setAuthPopupOpen] = useState(false);
+  const [anonMessageCount, setAnonMessageCount] = useState(0);
 
   const canSend = useMemo(() => query.trim().length > 0 && !loading, [query, loading]);
 
@@ -98,9 +108,11 @@ export default function App() {
     if (user) return;
     const raw = localStorage.getItem(ANON_CONVERSATIONS_KEY);
     const active = localStorage.getItem(ANON_ACTIVE_KEY);
+    const messageCount = Number(localStorage.getItem(ANON_MESSAGE_COUNT_KEY) ?? 0);
     const parsed = raw ? JSON.parse(raw) : [];
     setConversations(parsed);
     setActiveConversationId(active || null);
+    setAnonMessageCount(Number.isFinite(messageCount) ? messageCount : 0);
     if (active) {
       const conversation = parsed.find((c) => c.id === active);
       const restoredMessages = conversation?.messages ?? [];
@@ -108,12 +120,64 @@ export default function App() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user && anonMessageCount >= ANON_MESSAGE_LIMIT) {
+      setAuthPopupOpen(true);
+    }
+  }, [anonMessageCount, user]);
+
   function persistAnonymous(nextConversations, nextActiveId) {
     localStorage.setItem(ANON_CONVERSATIONS_KEY, JSON.stringify(nextConversations));
     if (nextActiveId) {
       localStorage.setItem(ANON_ACTIVE_KEY, nextActiveId);
     } else {
       localStorage.removeItem(ANON_ACTIVE_KEY);
+    }
+  }
+
+  function incrementAnonMessageCount() {
+    setAnonMessageCount((prev) => {
+      const next = prev + 1;
+      localStorage.setItem(ANON_MESSAGE_COUNT_KEY, String(next));
+      return next;
+    });
+  }
+
+  function clearAnonymousSessionStorage() {
+    localStorage.removeItem(ANON_CONVERSATIONS_KEY);
+    localStorage.removeItem(ANON_ACTIVE_KEY);
+    localStorage.removeItem(ANON_MESSAGE_COUNT_KEY);
+    setAnonMessageCount(0);
+  }
+
+  async function migrateAnonymousConversations() {
+    const raw = localStorage.getItem(ANON_CONVERSATIONS_KEY);
+    if (!raw) return;
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      clearAnonymousSessionStorage();
+      return;
+    }
+
+    const payload = parsed.map((conversation) => ({
+      title: conversation.title,
+      messages: Array.isArray(conversation.messages)
+        ? conversation.messages
+            .filter((message) => message && typeof message.text === "string")
+            .map((message) => ({ role: message.role, text: message.text }))
+        : [],
+    }));
+
+    const response = await fetch(`${API_BASE}/conversations/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ conversations: payload }),
+    });
+
+    if (response.ok) {
+      clearAnonymousSessionStorage();
     }
   }
 
@@ -130,6 +194,7 @@ export default function App() {
 
       const data = await response.json();
       setUser(data.user);
+      await migrateAnonymousConversations();
       await loadConversations(true);
     } finally {
       setAuthLoading(false);
@@ -215,6 +280,7 @@ export default function App() {
       setMessages([]);
       setConversations([]);
       setActiveConversationId(null);
+      setAnonMessageCount(0);
     } finally {
       setAuthActionLoading(false);
     }
@@ -233,6 +299,7 @@ export default function App() {
       setMessages([]);
       setConversations([]);
       setActiveConversationId(null);
+      setAnonMessageCount(0);
     } finally {
       setAuthActionLoading(false);
     }
@@ -249,6 +316,15 @@ export default function App() {
   async function runConversation(messageText) {
     const trimmed = messageText.trim();
     if (!trimmed || loading) return;
+
+    if (!user && anonMessageCount >= ANON_MESSAGE_LIMIT) {
+      setAuthPopupOpen(true);
+      return;
+    }
+
+    if (!user) {
+      incrementAnonMessageCount();
+    }
 
     const userMsg = { id: crypto.randomUUID(), role: "user", text: trimmed };
     const assistantId = crypto.randomUUID();
@@ -362,7 +438,11 @@ export default function App() {
         <div className="brand-dot" />
         <h1>Perplexity Clone</h1>
 
-        {user ? <div className="user-chip">{user.name}</div> : <div className="user-chip">Anonymous</div>}
+        {user ? (
+          <div className="user-chip">{user.name}</div>
+        ) : (
+          <div className="user-chip">Anonymous ({Math.max(ANON_MESSAGE_LIMIT - anonMessageCount, 0)} left)</div>
+        )}
         {!user ? (
           <button className="plain-btn" onClick={() => setAuthPopupOpen(true)}>Sign in</button>
         ) : (
@@ -402,7 +482,15 @@ export default function App() {
             {messages.map((msg) => (
               <article key={msg.id} className={`message message-${msg.role}`}>
                 <div className="role">{msg.role === "user" ? "You" : "Answer"}</div>
-                <div className="bubble">{msg.text || (loading && msg.role === "assistant" ? "Thinking..." : "")}</div>
+                <div className="bubble">
+                  {msg.role === "assistant" ? (
+                    <ReactMarkdown className="bubble-markdown">
+                      {msg.text || (loading ? "Thinking..." : "")}
+                    </ReactMarkdown>
+                  ) : (
+                    msg.text || ""
+                  )}
+                </div>
 
                 {msg.role === "assistant" && Array.isArray(msg.sources) && msg.sources.length > 0 ? (
                   <div className="sources">
@@ -426,12 +514,13 @@ export default function App() {
 
       <form className="composer" onSubmit={startConversation}>
         {suggestedPrompts.length > 0 ? (
-          <div className="composer-suggestions">
+          <div className="composer-suggestions" aria-label="Suggested follow-up questions">
+            <div className="composer-suggestions-label">Try one of these:</div>
             {suggestedPrompts.map((prompt) => (
               <button
                 key={prompt}
                 type="button"
-                className="suggestion-btn"
+                className="suggestion-chip"
                 onClick={() => sendSuggestedPrompt(prompt)}
                 disabled={loading}
               >
@@ -446,7 +535,7 @@ export default function App() {
           placeholder="Ask anything..."
           disabled={loading}
         />
-        <button type="submit" disabled={!canSend}>{loading ? "Running" : "Ask"}</button>
+        <button className="ask-btn" type="submit" disabled={!canSend}>{loading ? "Running" : "Ask"}</button>
       </form>
 
       {authPopupOpen ? (
@@ -473,7 +562,12 @@ export default function App() {
             }}
           >
             <h3>Sign in</h3>
-            <p>Use your account to sync conversations across devices.</p>
+            <p>
+              Use your account to sync conversations across devices.
+              {!user && anonMessageCount >= ANON_MESSAGE_LIMIT
+                ? " Anonymous mode has a 5-message limit."
+                : ""}
+            </p>
             <div className="auth-actions">
               <a className="auth-btn" href={`${API_BASE}/auth/google`}>Continue with Google</a>
               <a className="auth-btn" href={`${API_BASE}/auth/github`}>Continue with GitHub</a>

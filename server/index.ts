@@ -287,6 +287,58 @@ app.get("/conversations", requireAuth, async (req, res) => {
   res.json({ conversations: rows });
 });
 
+app.post("/conversations/import", requireAuth, async (req, res) => {
+  const user = requireUser(req);
+  const input = req.body?.conversations;
+
+  if (!Array.isArray(input)) {
+    res.status(400).json({ error: "conversations_required" });
+    return;
+  }
+
+  let imported = 0;
+
+  for (const conversation of input) {
+    if (!conversation || typeof conversation !== "object") continue;
+
+    const titleRaw =
+      typeof conversation.title === "string" && conversation.title.trim().length > 0
+        ? conversation.title.trim()
+        : "Imported conversation";
+
+    const [createdConversation] = await db
+      .insert(conversations)
+      .values({
+        userId: user.id,
+        title: titleRaw.slice(0, 80),
+        slug: makeSlug(titleRaw),
+      })
+      .returning({ id: conversations.id });
+
+    if (!createdConversation) continue;
+
+    const incomingMessages = Array.isArray((conversation as any).messages)
+      ? (conversation as any).messages
+      : [];
+
+    const messageRows = incomingMessages
+      .filter((message: any) => message && typeof message.text === "string" && message.text.trim())
+      .map((message: any) => ({
+        conversationId: createdConversation.id,
+        role: message.role === "user" ? "User" : "Assistant",
+        context: message.text.trim(),
+      }));
+
+    if (messageRows.length > 0) {
+      await db.insert(messages).values(messageRows);
+    }
+
+    imported += 1;
+  }
+
+  res.json({ ok: true, imported });
+});
+
 app.get("/conversations/:id/messages", requireAuth, async (req, res) => {
   const user = requireUser(req);
   const conversationParam = req.params.id;
