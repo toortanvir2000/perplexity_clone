@@ -1,0 +1,330 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b1020;
+  --panel: #11182c;
+  --panel-soft: #0f1527;
+  --text: #dbe6ff;
+  --muted: #9ca9c9;
+  --accent: #21c6b8;
+  --border: #223150;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+  background: radial-gradient(circle at 20% 0%, #121a31 0%, var(--bg) 55%);
+  color: var(--text);
+}
+
+.app-shell {
+  max-width: 920px;
+  min-height: 100vh;
+  margin: 0 auto;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.app-grid {
+  grid-template-columns: 240px 1fr;
+  grid-template-areas:
+    "topbar topbar"
+    "sidebar chat"
+    "sidebar composer";
+}
+
+.topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: color-mix(in oklab, var(--panel) 85%, black 15%);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0.75rem 1rem;
+}
+
+.topbar h1 {
+  margin: 0;
+  margin-right: auto;
+  font-size: 1rem;
+  letter-spacing: 0.2px;
+}
+
+.user-chip {
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.plain-btn,
+.danger-btn {
+  border: 1px solid var(--border);
+  background: #101a31;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.4rem 0.65rem;
+  cursor: pointer;
+}
+
+.danger-btn {
+  border-color: #8b3350;
+  color: #ffb6cb;
+}
+
+.brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 12px color-mix(in oklab, var(--accent), white 20%);
+}
+
+.chat-area {
+  grid-area: chat;
+  background: color-mix(in oklab, var(--panel-soft) 88%, black 12%);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 1rem;
+  overflow: auto;
+}
+
+.welcome {
+  text-align: center;
+  margin-top: 3.5rem;
+}
+
+.auth-card {
+  margin-top: 8rem;
+}
+
+.auth-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.auth-btn {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.65rem 0.9rem;
+  color: var(--text);
+  text-decoration: none;
+  background: #121d38;
+}
+
+.auth-btn:hover {
+  border-color: color-mix(in oklab, var(--accent), white 10%);
+}
+
+.sidebar {
+  grid-area: sidebar;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #0f1527;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.new-chat-btn {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #152243;
+  color: var(--text);
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+}
+
+.sidebar-title {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.conversation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  overflow: auto;
+}
+
+.conversation-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem;
+}
+
+.conversation-item {
+  text-align: left;
+  background: #101a31;
+  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  cursor: pointer;
+}
+
+.conversation-item.active {
+  border-color: var(--accent);
+}
+
+.delete-conversation-btn {
+  border: 1px solid #3a2744;
+  background: #201225;
+  color: #f6b8d2;
+  border-radius: 8px;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+
+.welcome h2 {
+  margin-bottom: 0.5rem;
+}
+
+.welcome p {
+  color: var(--muted);
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.message {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0.85rem;
+  background: #0e1527;
+}
+
+.message-user {
+  background: #121a31;
+}
+
+.role {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-bottom: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.bubble {
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.sources {
+  margin-top: 0.85rem;
+  border-top: 1px dashed var(--border);
+  padding-top: 0.8rem;
+}
+
+.sources-title {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.45rem;
+}
+
+.sources ul {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.sources a {
+  color: #9ad7ff;
+  text-decoration: none;
+}
+
+.sources a:hover {
+  text-decoration: underline;
+}
+
+.composer {
+  grid-area: composer;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.7rem;
+  background: color-mix(in oklab, var(--panel) 85%, black 15%);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0.7rem;
+}
+
+.composer input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  padding: 0.8rem 0.9rem;
+  background: #0f162a;
+  color: var(--text);
+  outline: none;
+}
+
+.composer input:focus {
+  border-color: color-mix(in oklab, var(--accent), white 10%);
+}
+
+.composer button {
+  border: 0;
+  border-radius: 10px;
+  padding: 0 1rem;
+  min-width: 88px;
+  font-weight: 600;
+  background: linear-gradient(180deg, #2cd8ca 0%, #1ba99d 100%);
+  color: #03211f;
+  cursor: pointer;
+}
+
+.composer button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.auth-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 8, 20, 0.6);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+}
+
+.auth-modal {
+  width: min(420px, calc(100vw - 2rem));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #101a31;
+  padding: 1rem;
+}
+
+.auth-modal h3 {
+  margin-top: 0;
+}
+
+.auth-modal .plain-btn {
+  margin-top: 1rem;
+}
+
+@media (max-width: 900px) {
+  .app-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "topbar"
+      "sidebar"
+      "chat"
+      "composer";
+  }
+}
