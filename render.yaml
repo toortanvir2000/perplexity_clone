@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: perplexity-clone
+    name: ishenium
     env: node
     rootDir: .
     plan: free
