@@ -263,6 +263,32 @@ body {
   padding: 0.7rem;
 }
 
+.composer-suggestions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.suggestion-btn {
+  border: 1px solid #2a3a61;
+  border-radius: 999px;
+  background: #0f1a33;
+  color: var(--text);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.suggestion-btn:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--accent), white 15%);
+}
+
+.suggestion-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .composer input {
   width: 100%;
   border-radius: 10px;

@@ -21,6 +21,47 @@ function parseSources(raw) {
   }
 }
 
+function extractTagContent(raw, tagName) {
+  const regex = new RegExp(`<${tagName}>([\\s\\S]*?)<\\/${tagName}>`, "i");
+  const match = raw.match(regex);
+  return match?.[1]?.trim() ?? "";
+}
+
+function splitSuggestionItems(raw) {
+  if (!raw) return [];
+
+  return raw
+    .split(/\n|\r|\d+[.)]\s+|[-*]\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseAssistantResponse(rawText) {
+  const answer = extractTagContent(rawText, "ANSWER");
+  const followUp = splitSuggestionItems(extractTagContent(rawText, "FOLLOW_UP"));
+  const question = splitSuggestionItems(extractTagContent(rawText, "QUESTION"));
+
+  const suggestions = Array.from(new Set([...followUp, ...question]));
+
+  if (answer) {
+    return { answer, suggestions };
+  }
+
+  const cleaned = rawText
+    .replace(/<\/?ANSWER>/gi, "")
+    .replace(/<\/?FOLLOW_UP>/gi, "")
+    .replace(/<\/?QUESTION>/gi, "")
+    .trim();
+
+  return { answer: cleaned || rawText, suggestions };
+}
+
+function parseAssistantPayload(raw) {
+  const { text, sources } = parseSources(raw);
+  const { answer, suggestions } = parseAssistantResponse(text);
+  return { text: answer, sources, suggestions };
+}
+
 function makeLocalConversationId() {
   return `anon-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 }
@@ -38,10 +79,16 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
+  const [suggestedPrompts, setSuggestedPrompts] = useState([]);
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [authPopupOpen, setAuthPopupOpen] = useState(false);
 
   const canSend = useMemo(() => query.trim().length > 0 && !loading, [query, loading]);
+
+  useEffect(() => {
+    const lastAssistant = [...messages].reverse().find((msg) => msg.role === "assistant");
+    setSuggestedPrompts(lastAssistant?.suggestions ?? []);
+  }, [messages]);
 
   useEffect(() => {
     void loadSession();
@@ -56,7 +103,8 @@ export default function App() {
     setActiveConversationId(active || null);
     if (active) {
       const conversation = parsed.find((c) => c.id === active);
-      setMessages(conversation?.messages ?? []);
+      const restoredMessages = conversation?.messages ?? [];
+      setMessages(restoredMessages);
     }
   }, [user]);
 
@@ -102,7 +150,8 @@ export default function App() {
     if (!user) {
       const conversation = conversations.find((c) => c.id === conversationId);
       setActiveConversationId(conversationId);
-      setMessages(conversation?.messages ?? []);
+      const nextMessages = conversation?.messages ?? [];
+      setMessages(nextMessages);
       persistAnonymous(conversations, conversationId);
       return;
     }
@@ -113,14 +162,20 @@ export default function App() {
     if (!response.ok) return;
 
     const data = await response.json();
-    setMessages(
-      (data.messages ?? []).map((msg) => ({
+    const mappedMessages = (data.messages ?? []).map((msg) => {
+      const isAssistant = msg.role !== "User";
+      const parsed = isAssistant ? parseAssistantResponse(msg.context) : null;
+
+      return {
         id: `stored-${msg.id}`,
         role: msg.role === "User" ? "user" : "assistant",
-        text: msg.context,
+        text: isAssistant ? parsed.answer : msg.context,
         sources: [],
-      })),
-    );
+        suggestions: isAssistant ? parsed.suggestions : [],
+      };
+    });
+
+    setMessages(mappedMessages);
     setActiveConversationId(conversationId);
   }
 
@@ -191,15 +246,19 @@ export default function App() {
     }
   }
 
-  async function startConversation(e) {
-    e.preventDefault();
-    const trimmed = query.trim();
+  async function runConversation(messageText) {
+    const trimmed = messageText.trim();
     if (!trimmed || loading) return;
 
     const userMsg = { id: crypto.randomUUID(), role: "user", text: trimmed };
     const assistantId = crypto.randomUUID();
+    const existingMessages = messages;
 
-    setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", text: "", sources: [] }]);
+    setMessages((prev) => [
+      ...prev,
+      userMsg,
+      { id: assistantId, role: "assistant", text: "", sources: [], suggestions: [] },
+    ]);
     setQuery("");
     setLoading(true);
 
@@ -228,20 +287,20 @@ export default function App() {
         const { done, value } = await reader.read();
         if (done) break;
         fullText += decoder.decode(value, { stream: true });
-        const { text, sources } = parseSources(fullText);
+        const { text, sources, suggestions } = parseAssistantPayload(fullText);
         setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, text, sources } : m)),
+          prev.map((m) => (m.id === assistantId ? { ...m, text, sources, suggestions } : m)),
         );
       }
 
       fullText += decoder.decode();
-      const { text, sources } = parseSources(fullText);
-      const finalMessages = messages
+      const { text, sources, suggestions } = parseAssistantPayload(fullText);
+      const finalMessages = existingMessages
         .concat(userMsg)
-        .concat([{ id: assistantId, role: "assistant", text, sources }]);
+        .concat([{ id: assistantId, role: "assistant", text, sources, suggestions }]);
 
       setMessages((prev) =>
-        prev.map((m) => (m.id === assistantId ? { ...m, text, sources } : m)),
+          prev.map((m) => (m.id === assistantId ? { ...m, text, sources, suggestions } : m)),
       );
 
       if (user) {
@@ -277,6 +336,16 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function startConversation(e) {
+    e.preventDefault();
+    await runConversation(query);
+  }
+
+  async function sendSuggestedPrompt(prompt) {
+    if (loading) return;
+    await runConversation(prompt);
   }
 
   if (authLoading) {
@@ -356,6 +425,21 @@ export default function App() {
       </main>
 
       <form className="composer" onSubmit={startConversation}>
+        {suggestedPrompts.length > 0 ? (
+          <div className="composer-suggestions">
+            {suggestedPrompts.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                className="suggestion-btn"
+                onClick={() => sendSuggestedPrompt(prompt)}
+                disabled={loading}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}

@@ -18,6 +18,7 @@ const ai = new GoogleGenAI({});
 
 const app = express();
 app.disable("x-powered-by");
+app.set("trust proxy", 1);
 const port = Number(process.env.PORT ?? 8080);
 const apiBaseUrl = process.env.API_BASE_URL ?? `http://localhost:${port}`;
 const clientUrl = process.env.CLIENT_URL ?? "http://localhost:5173";
@@ -155,7 +156,7 @@ app.use(
     keys: [sessionSecret],
     maxAge: 1000 * 60 * 60 * 24 * 30,
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     secure: process.env.NODE_ENV === "production",
   }),
 );
