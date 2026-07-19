@@ -9,7 +9,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const authProviderEnum = pgEnum("auth_provider", ["Github", "Google"]);
+export const authProviderEnum = pgEnum("auth_provider", ["Github", "Google", "Local"]);
 export const messageRoleEnum = pgEnum("message_role", ["User", "Assistant"]);
 
 export const users = pgTable(
@@ -19,6 +19,7 @@ export const users = pgTable(
     email: text("email").notNull(),
     provider: authProviderEnum("provider").notNull(),
     providerAccountId: text("provider_account_id").notNull(),
+    passwordHash: text("password_hash"),
     name: text("name").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

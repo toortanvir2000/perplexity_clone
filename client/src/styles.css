@@ -131,6 +131,66 @@ p {
   margin-top: 1rem;
 }
 
+.auth-mode-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.auth-mode-btn {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #101a31;
+  color: var(--muted);
+  padding: 0.42rem 0.5rem;
+  cursor: pointer;
+}
+
+.auth-mode-btn.active {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.auth-form {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.auth-form input {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0f162a;
+  color: var(--text);
+  padding: 0.52rem 0.64rem;
+  outline: none;
+}
+
+.auth-form input:focus {
+  border-color: color-mix(in oklab, var(--accent), white 10%);
+}
+
+.auth-error {
+  color: #ffb6cb;
+  font-size: 0.8rem;
+}
+
+.auth-submit-btn {
+  border: 0;
+  border-radius: 8px;
+  padding: 0.52rem 0.7rem;
+  font-weight: 600;
+  background: linear-gradient(180deg, #2cd8ca 0%, #1ba99d 100%);
+  color: #03211f;
+  cursor: pointer;
+}
+
+.auth-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .auth-btn {
   border: 1px solid var(--border);
   border-radius: 10px;

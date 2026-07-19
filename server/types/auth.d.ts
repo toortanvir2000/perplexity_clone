@@ -6,8 +6,9 @@ declare global {
       id: string;
       email: string;
       name: string;
-      provider: "Google" | "Github";
+      provider: "Google" | "Github" | "Local";
       providerAccountId: string;
+      passwordHash?: string | null;
     }
   }
 }

@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import cookieSession from "cookie-session";
+import bcrypt from "bcryptjs";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as GithubStrategy } from "passport-github2";
@@ -83,6 +84,22 @@ async function upsertOAuthUser(input: {
   return created;
 }
 
+async function findLocalUserByEmail(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(
+      and(
+        eq(users.provider, "Local"),
+        eq(users.providerAccountId, normalizedEmail),
+      ),
+    )
+    .limit(1);
+
+  return user ?? null;
+}
+
 passport.use(
   new GoogleStrategy(
     {
@@ -145,7 +162,22 @@ passport.use(
 
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://localhost:5173", clientUrl],
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      const defaultLocalOrigins = ["http://localhost:3000", "http://localhost:5173"];
+      const allowedOrigins = new Set([...defaultLocalOrigins, clientUrl]);
+
+      if (allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("CORS origin not allowed"));
+    },
     credentials: true,
     exposedHeaders: ["X-Conversation-Id"],
   }),
@@ -334,6 +366,113 @@ async function buildOptimizedConversationContext(
 }
 
 app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+app.post("/auth/signup", async (req, res) => {
+  try {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    const nameInput = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+
+    if (!email || !password) {
+      res.status(400).json({ error: "email_and_password_required" });
+      return;
+    }
+
+    if (password.length < 8) {
+      res.status(400).json({ error: "password_too_short" });
+      return;
+    }
+
+    const existing = await findLocalUserByEmail(email);
+    if (existing) {
+      res.status(409).json({ error: "account_already_exists" });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const fallbackName = email.split("@")[0] || "User";
+
+    const [createdUser] = await db
+      .insert(users)
+      .values({
+        email,
+        provider: "Local",
+        providerAccountId: email,
+        passwordHash,
+        name: (nameInput || fallbackName).slice(0, 80),
+      })
+      .returning();
+
+    if (!createdUser) {
+      res.status(500).json({ error: "signup_failed" });
+      return;
+    }
+
+    req.login(createdUser, (error) => {
+      if (error) {
+        res.status(500).json({ error: "login_failed" });
+        return;
+      }
+
+      res.json({
+        ok: true,
+        user: {
+          id: createdUser.id,
+          email: createdUser.email,
+          name: createdUser.name,
+          provider: createdUser.provider,
+        },
+      });
+    });
+  } catch (error) {
+    console.error("[auth/signup] error", error);
+    res.status(500).json({ error: "signup_failed" });
+  }
+});
+
+app.post("/auth/signin", async (req, res) => {
+  try {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+
+    if (!email || !password) {
+      res.status(400).json({ error: "email_and_password_required" });
+      return;
+    }
+
+    const user = await findLocalUserByEmail(email);
+    if (!user || !user.passwordHash) {
+      res.status(401).json({ error: "invalid_credentials" });
+      return;
+    }
+
+    const passwordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!passwordValid) {
+      res.status(401).json({ error: "invalid_credentials" });
+      return;
+    }
+
+    req.login(user, (error) => {
+      if (error) {
+        res.status(500).json({ error: "login_failed" });
+        return;
+      }
+
+      res.json({
+        ok: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          provider: user.provider,
+        },
+      });
+    });
+  } catch (error) {
+    console.error("[auth/signin] error", error);
+    res.status(500).json({ error: "signin_failed" });
+  }
+});
+
 app.get(
   "/auth/google/callback",
   passport.authenticate("google", { failureRedirect: `${clientUrl}?auth_error=google` }),

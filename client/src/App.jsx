@@ -93,6 +93,11 @@ export default function App() {
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [authPopupOpen, setAuthPopupOpen] = useState(false);
   const [anonMessageCount, setAnonMessageCount] = useState(0);
+  const [authMode, setAuthMode] = useState("signin");
+  const [authName, setAuthName] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState("");
 
   const canSend = useMemo(() => query.trim().length > 0 && !loading, [query, loading]);
 
@@ -105,6 +110,20 @@ export default function App() {
 
   useEffect(() => {
     void loadSession();
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const authErrorParam = params.get("auth_error");
+    if (!authErrorParam) return;
+
+    setAuthPopupOpen(true);
+    setAuthError("OAuth login failed. You can try again or sign in with email/password.");
+
+    params.delete("auth_error");
+    const nextQuery = params.toString();
+    const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", nextUrl);
   }, []);
 
   useEffect(() => {
@@ -427,6 +446,54 @@ export default function App() {
     await runConversation(prompt);
   }
 
+  async function submitEmailAuth(e) {
+    e.preventDefault();
+    const email = authEmail.trim().toLowerCase();
+    const password = authPassword;
+    const name = authName.trim();
+
+    if (!email || !password || (authMode === "signup" && !name)) {
+      setAuthError("Please fill all required fields.");
+      return;
+    }
+
+    setAuthActionLoading(true);
+    setAuthError("");
+    try {
+      const route = authMode === "signup" ? "/auth/signup" : "/auth/signin";
+      const response = await fetch(`${API_BASE}${route}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password, name }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const message =
+          data?.error === "account_already_exists"
+            ? "Account already exists. Please sign in."
+            : data?.error === "invalid_credentials"
+              ? "Invalid email or password."
+              : data?.error === "password_too_short"
+                ? "Password must be at least 8 characters."
+                : "Authentication failed. Please try again.";
+        setAuthError(message);
+        return;
+      }
+
+      await loadSession();
+      setAuthPopupOpen(false);
+      setAuthPassword("");
+      setAuthName("");
+      setAuthEmail("");
+      setAuthError("");
+      setAuthMode("signin");
+    } finally {
+      setAuthActionLoading(false);
+    }
+  }
+
   if (authLoading) {
     return (
       <div className="app-shell loading-view">
@@ -583,6 +650,65 @@ export default function App() {
                 ? " Anonymous mode has a 5-message limit."
                 : ""}
             </p>
+            <div className="auth-mode-row">
+              <button
+                type="button"
+                className={`auth-mode-btn ${authMode === "signin" ? "active" : ""}`}
+                onClick={() => {
+                  setAuthMode("signin");
+                  setAuthError("");
+                }}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                className={`auth-mode-btn ${authMode === "signup" ? "active" : ""}`}
+                onClick={() => {
+                  setAuthMode("signup");
+                  setAuthError("");
+                }}
+              >
+                Sign up
+              </button>
+            </div>
+            <form className="auth-form" onSubmit={submitEmailAuth}>
+              {authMode === "signup" ? (
+                <input
+                  type="text"
+                  placeholder="Name"
+                  value={authName}
+                  onChange={(e) => setAuthName(e.target.value)}
+                  autoComplete="name"
+                  required
+                />
+              ) : null}
+              <input
+                type="email"
+                placeholder="Email"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                autoComplete="email"
+                required
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                autoComplete={authMode === "signup" ? "new-password" : "current-password"}
+                minLength={8}
+                required
+              />
+              {authError ? <div className="auth-error">{authError}</div> : null}
+              <button className="auth-submit-btn" type="submit" disabled={authActionLoading}>
+                {authActionLoading
+                  ? "Please wait..."
+                  : authMode === "signup"
+                    ? "Create account"
+                    : "Sign in with email"}
+              </button>
+            </form>
             <div className="auth-actions">
               <a className="auth-btn" href={`${API_BASE}/auth/google`}>Continue with Google</a>
               <a className="auth-btn" href={`${API_BASE}/auth/github`}>Continue with GitHub</a>
