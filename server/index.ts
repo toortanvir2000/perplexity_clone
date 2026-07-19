@@ -174,6 +174,9 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.json());
 const STREAM_DEBUG = process.env.STREAM_DEBUG === "1";
+const CONTEXT_CHARS_PER_TOKEN = 4;
+const CONTEXT_MAX_INPUT_TOKENS = 5500;
+const CONTEXT_RECENT_TURNS = 8;
 
 function requireAuth(
   req: express.Request,
@@ -214,6 +217,120 @@ function extractChunk(event: unknown) {
   if (typeof e?.text === "string") return e.text;
   if (typeof e?.output_text === "string") return e.output_text;
   return "";
+}
+
+function estimateTokens(text: string) {
+  return Math.ceil(text.length / CONTEXT_CHARS_PER_TOKEN);
+}
+
+type StoredMessage = {
+  role: "User" | "Assistant";
+  context: string;
+};
+
+function formatConversationTurns(turns: StoredMessage[]) {
+  return turns
+    .map((turn) => `${turn.role}: ${turn.context.trim()}`)
+    .join("\n\n")
+    .trim();
+}
+
+async function summarizeOlderTurns(
+  olderTurns: StoredMessage[],
+  currentQuestion: string,
+) {
+  const olderTranscript = formatConversationTurns(olderTurns).slice(0, 18000);
+  const summaryPrompt = [
+    "Summarize the earlier conversation for context compression.",
+    "Focus on: user intent, constraints, key facts, decisions, and unresolved items.",
+    "Do not add new information.",
+    "Keep it concise (8-12 bullet points).",
+    "",
+    `Current user question: ${currentQuestion}`,
+    "",
+    "Earlier conversation:",
+    olderTranscript,
+  ].join("\n");
+
+  const summaryStream = await ai.interactions.create({
+    model: "gemini-3.5-flash",
+    input: summaryPrompt,
+    system_instruction: "Return plain text bullets only.",
+    stream: true,
+  });
+
+  let summary = "";
+  for await (const event of summaryStream) {
+    summary += extractChunk(event);
+  }
+
+  return summary.trim();
+}
+
+async function buildOptimizedConversationContext(
+  conversationId: string,
+  currentQuestion: string,
+) {
+  const rows = await db
+    .select({
+      role: messages.role,
+      context: messages.context,
+      createdAt: messages.createdAt,
+    })
+    .from(messages)
+    .where(eq(messages.conversationId, conversationId))
+    .orderBy(messages.createdAt);
+
+  const turns: StoredMessage[] = rows
+    .filter((row) => typeof row.context === "string" && row.context.trim().length > 0)
+    .map((row) => ({ role: row.role, context: row.context }));
+
+  if (turns.length === 0) {
+    return "";
+  }
+
+  const fullTranscript = formatConversationTurns(turns);
+  const fullTokens = estimateTokens(fullTranscript);
+
+  if (fullTokens <= CONTEXT_MAX_INPUT_TOKENS) {
+    return fullTranscript;
+  }
+
+  const recentTurns = turns.slice(-CONTEXT_RECENT_TURNS);
+  const olderTurns = turns.slice(0, -CONTEXT_RECENT_TURNS);
+
+  let olderSummary = "";
+  if (olderTurns.length > 0) {
+    try {
+      olderSummary = await summarizeOlderTurns(olderTurns, currentQuestion);
+    } catch (error) {
+      if (STREAM_DEBUG) {
+        console.warn("[conversation] context summary failed", error);
+      }
+    }
+  }
+
+  const recentTranscript = formatConversationTurns(recentTurns);
+  const sections: string[] = [];
+  if (olderSummary) {
+    sections.push(`Earlier conversation summary:\n${olderSummary}`);
+  }
+  sections.push(`Recent turns:\n${recentTranscript}`);
+
+  let optimizedContext = sections.join("\n\n").trim();
+
+  // If still too large, keep shrinking recent turns from oldest to newest.
+  let shrinkTurns = [...recentTurns];
+  while (estimateTokens(optimizedContext) > CONTEXT_MAX_INPUT_TOKENS && shrinkTurns.length > 2) {
+    shrinkTurns = shrinkTurns.slice(1);
+    const compactRecent = formatConversationTurns(shrinkTurns);
+    const compactSections: string[] = [];
+    if (olderSummary) compactSections.push(`Earlier conversation summary:\n${olderSummary}`);
+    compactSections.push(`Recent turns:\n${compactRecent}`);
+    optimizedContext = compactSections.join("\n\n").trim();
+  }
+
+  return optimizedContext;
 }
 
 app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
@@ -472,15 +589,32 @@ async function handleConversation(
     const response = await tavilyClient.search(trimmedMessage, {
       includeSources: true,
       includeAnswer: true,
-      searchDepth: "basic", // Would like to bring it from the frontend in the future
-      topic: "general", // Would like to bring it from the frontend in the future
-      timeRange: "year", // Would like to bring it from the frontend in the future
+      searchDepth: "basic",
     });
     const results = response.results;
+
+    let conversationContext = "";
+    if (user && activeConversationId) {
+      conversationContext = await buildOptimizedConversationContext(
+        activeConversationId,
+        trimmedMessage,
+      );
+    }
+
+    const queryWithContext = conversationContext
+      ? [
+          "Use this conversation context to maintain continuity.",
+          "",
+          conversationContext,
+          "",
+          `Current user question: ${trimmedMessage}`,
+        ].join("\n")
+      : trimmedMessage;
+
     const input = PROMPT_TEMPLATE.replace(
       "{{web_search_results}}",
       JSON.stringify(results),
-    ).replace("{{user_query}}", trimmedMessage);
+    ).replace("{{user_query}}", queryWithContext);
 
     const interaction_stream = await ai.interactions.create({
       model: "gemini-3.5-flash",
