@@ -37,13 +37,26 @@ if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
   throw new Error("GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET are required");
 }
 
+const userPublicColumns = {
+  id: users.id,
+  email: users.email,
+  provider: users.provider,
+  providerAccountId: users.providerAccountId,
+  name: users.name,
+  createdAt: users.createdAt,
+};
+
 passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 
 passport.deserializeUser(async (id: string, done) => {
   try {
-    const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    const [user] = await db
+      .select(userPublicColumns)
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
     done(null, user ?? false);
   } catch (error) {
     done(error as Error);
@@ -57,7 +70,7 @@ async function upsertOAuthUser(input: {
   name: string;
 }) {
   const [existing] = await db
-    .select()
+    .select(userPublicColumns)
     .from(users)
     .where(
       and(
@@ -79,7 +92,7 @@ async function upsertOAuthUser(input: {
       providerAccountId: input.providerAccountId,
       name: input.name,
     })
-    .returning();
+    .returning(userPublicColumns);
 
   return created;
 }

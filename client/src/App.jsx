@@ -623,14 +623,7 @@ export default function App() {
       {authPopupOpen ? (
         <div
           className="auth-modal-backdrop"
-          role="button"
-          tabIndex={0}
           onClick={() => setAuthPopupOpen(false)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              setAuthPopupOpen(false);
-            }
-          }}
         >
           <div
             className="auth-modal"
