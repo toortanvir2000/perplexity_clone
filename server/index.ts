@@ -233,6 +233,10 @@ app.get(
   },
 );
 
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true });
+});
+
 app.get("/auth/me", (req, res) => {
   if (!req.isAuthenticated() || !req.user) {
     res.status(401).json({ authenticated: false });
