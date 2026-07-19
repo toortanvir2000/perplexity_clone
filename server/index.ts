@@ -2,6 +2,9 @@ import express from "express";
 import cors from "cors";
 import cookieSession from "cookie-session";
 import bcrypt from "bcryptjs";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as GithubStrategy } from "passport-github2";
@@ -16,6 +19,9 @@ const tavilyClient = tavily({
   apiKey: process.env.TAVILY_API_KEY,
 });
 const ai = new GoogleGenAI({});
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDistPath = path.resolve(__dirname, "../client/dist");
 
 const app = express();
 app.disable("x-powered-by");
@@ -839,6 +845,23 @@ app.post("/conversation", handleConversation);
 app.post("/conversation/followup", async (req, res) => {
   await handleConversation(req, res);
 });
+
+if (process.env.NODE_ENV === "production" && fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get("*", (req, res, next) => {
+    if (
+      req.path.startsWith("/auth/") ||
+      req.path.startsWith("/conversation") ||
+      req.path.startsWith("/conversations") ||
+      req.path === "/health"
+    ) {
+      next();
+      return;
+    }
+
+    res.sendFile(path.join(clientDistPath, "index.html"));
+  });
+}
 
 app.listen(port, () => {
   console.log(`Server is up and running on port ${port}`);

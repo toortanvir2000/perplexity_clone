@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
+const DEFAULT_API_BASE =
+  typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:8080"
+    : "";
+const API_BASE = import.meta.env.VITE_API_URL ?? DEFAULT_API_BASE;
 const API_URL = `${API_BASE}/conversation`;
 const ANON_CONVERSATIONS_KEY = "anon_conversations_v1";
 const ANON_ACTIVE_KEY = "anon_active_conversation_v1";
