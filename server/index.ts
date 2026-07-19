@@ -848,7 +848,12 @@ app.post("/conversation/followup", async (req, res) => {
 
 if (process.env.NODE_ENV === "production" && fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath));
-  app.get("*", (req, res, next) => {
+  app.use((req, res, next) => {
+    if (req.method !== "GET") {
+      next();
+      return;
+    }
+
     if (
       req.path.startsWith("/auth/") ||
       req.path.startsWith("/conversation") ||
