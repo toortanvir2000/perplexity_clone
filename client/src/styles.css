@@ -20,6 +20,10 @@ body {
   color: var(--text);
 }
 
+p {
+    margin: 0.5rem 0;
+}
+
 .app-shell {
   max-width: 920px;
   min-height: 100vh;
