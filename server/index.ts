@@ -31,6 +31,27 @@ const apiBaseUrl = process.env.API_BASE_URL ?? `http://localhost:${port}`;
 const clientUrl = process.env.CLIENT_URL ?? "http://localhost:5173";
 const sessionSecret = process.env.SESSION_SECRET;
 
+function isAppApiRoute(pathname: string) {
+  return (
+    pathname.startsWith("/auth/") ||
+    pathname.startsWith("/conversation") ||
+    pathname.startsWith("/conversations") ||
+    pathname === "/health"
+  );
+}
+
+if (process.env.NODE_ENV === "production" && fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath, { index: false }));
+  app.use((req, res, next) => {
+    if (req.method !== "GET" || isAppApiRoute(req.path)) {
+      next();
+      return;
+    }
+
+    res.sendFile(path.join(clientDistPath, "index.html"));
+  });
+}
+
 if (!sessionSecret) {
   throw new Error("SESSION_SECRET is required");
 }
@@ -845,28 +866,6 @@ app.post("/conversation", handleConversation);
 app.post("/conversation/followup", async (req, res) => {
   await handleConversation(req, res);
 });
-
-if (process.env.NODE_ENV === "production" && fs.existsSync(clientDistPath)) {
-  app.use(express.static(clientDistPath));
-  app.use((req, res, next) => {
-    if (req.method !== "GET") {
-      next();
-      return;
-    }
-
-    if (
-      req.path.startsWith("/auth/") ||
-      req.path.startsWith("/conversation") ||
-      req.path.startsWith("/conversations") ||
-      req.path === "/health"
-    ) {
-      next();
-      return;
-    }
-
-    res.sendFile(path.join(clientDistPath, "index.html"));
-  });
-}
 
 app.listen(port, () => {
   console.log(`Server is up and running on port ${port}`);
