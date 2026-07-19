@@ -89,6 +89,7 @@ export default function App() {
   const [conversations, setConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [suggestedPrompts, setSuggestedPrompts] = useState([]);
+  const [suggestionsExpanded, setSuggestionsExpanded] = useState(false);
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [authPopupOpen, setAuthPopupOpen] = useState(false);
   const [anonMessageCount, setAnonMessageCount] = useState(0);
@@ -97,7 +98,9 @@ export default function App() {
 
   useEffect(() => {
     const lastAssistant = [...messages].reverse().find((msg) => msg.role === "assistant");
-    setSuggestedPrompts(lastAssistant?.suggestions ?? []);
+    const nextSuggestions = lastAssistant?.suggestions ?? [];
+    setSuggestedPrompts(nextSuggestions);
+    setSuggestionsExpanded(false);
   }, [messages]);
 
   useEffect(() => {
@@ -514,19 +517,31 @@ export default function App() {
 
       <form className="composer" onSubmit={startConversation}>
         {suggestedPrompts.length > 0 ? (
-          <div className="composer-suggestions" aria-label="Suggested follow-up questions">
-            <div className="composer-suggestions-label">Try one of these:</div>
-            {suggestedPrompts.map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                className="suggestion-chip"
-                onClick={() => sendSuggestedPrompt(prompt)}
-                disabled={loading}
-              >
-                {prompt}
-              </button>
-            ))}
+          <div className="composer-suggestions composer-suggestions-accordion" aria-label="Suggested follow-up questions">
+            <button
+              type="button"
+              className="suggestions-toggle"
+              onClick={() => setSuggestionsExpanded((prev) => !prev)}
+            >
+              {suggestionsExpanded
+                ? "Hide suggested questions"
+                : `Suggested questions (${suggestedPrompts.length})`}
+            </button>
+            {suggestionsExpanded ? (
+              <div className="composer-suggestions-list">
+                {suggestedPrompts.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    className="suggestion-chip"
+                    onClick={() => sendSuggestedPrompt(prompt)}
+                    disabled={loading}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
         <input
